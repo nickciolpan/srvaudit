@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>srvaudit</title>
+<meta name="description" content="A terminal audit dashboard for a remote Linux server: what is listening, what is running, where the data is, what starts on its own.">
+<meta property="og:title" content="srvaudit">
+<meta property="og:description" content="What is listening, what is running, where the data is, what starts on its own. One SSH connection, half a second.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://nickciolpan.github.io/srvaudit/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230C1A1C'/%3E%3Crect x='7' y='8' width='18' height='3' rx='1.5' fill='%234FD1C5'/%3E%3Crect x='7' y='14.5' width='11' height='3' rx='1.5' fill='%234FD1C5' opacity='.72'/%3E%3Crect x='7' y='21' width='5' height='3' rx='1.5' fill='%234FD1C5' opacity='.45'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+/* ---------------------------------------------------------------- tokens */
+:root {
+  --paper:      #F7F8F7;
+  --paper-sunk: #EFF2F1;
+  --ink:        #10201F;
+  --ink-soft:   #4E605F;
+  --ink-faint:  #7A8B89;
+  --rule:       #D8DFDD;
+  --rule-soft:  #E7ECEA;
+  --accent:     #007A7A;
+  --accent-bg:  #E1F0EE;
+  --sev-high:   #B7332B;
+  --sev-med:    #96660A;
+  --sev-info:   #4E605F;
+
+  /* The terminal plate keeps its own palette in both themes. */
+  --plate:      #0C1A1C;
+  --plate-line: #1F3234;
+  --plate-bar:  #132326;
+  --t-fg:       #C6D4D2;
+  --t-dim:      #6E8382;
+  --t-cyan:     #4FD1C5;
+  --t-red:      #F0736A;
+  --t-amber:    #E3B341;
+  --t-green:    #5FC97C;
+
+  --measure: 68ch;
+  --shell: 1080px;
+  --pad: clamp(20px, 5vw, 48px);
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:      #0A1315;
+    --paper-sunk: #0E1B1D;
+    --ink:        #DDE7E5;
+    --ink-soft:   #97AAA8;
+    --ink-faint:  #6C807E;
+    --rule:       #1E2E30;
+    --rule-soft:  #162326;
+    --accent:     #3ED3C5;
+    --accent-bg:  #10292A;
+    --sev-high:   #F0736A;
+    --sev-med:    #E3B341;
+    --sev-info:   #97AAA8;
+    --plate:      #06110F;
+    --plate-line: #1B2C2D;
+    --plate-bar:  #0C1B1C;
+  }
+}
+:root[data-theme="dark"] {
+  --paper:      #0A1315;
+  --paper-sunk: #0E1B1D;
+  --ink:        #DDE7E5;
+  --ink-soft:   #97AAA8;
+  --ink-faint:  #6C807E;
+  --rule:       #1E2E30;
+  --rule-soft:  #162326;
+  --accent:     #3ED3C5;
+  --accent-bg:  #10292A;
+  --sev-high:   #F0736A;
+  --sev-med:    #E3B341;
+  --sev-info:   #97AAA8;
+  --plate:      #06110F;
+  --plate-line: #1B2C2D;
+  --plate-bar:  #0C1B1C;
+}
+
+/* ------------------------------------------------------------------ base */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.65 var(--sans);
+  font-feature-settings: "kern";
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+.wrap { max-width: var(--shell); margin: 0 auto; padding-inline: var(--pad); }
+.rule { border: 0; border-top: 1px solid var(--rule); margin: 0; }
+
+h1, h2, h3 { font-family: var(--cond); font-weight: 700; text-wrap: balance; margin: 0; letter-spacing: -0.005em; }
+h2 { font-size: clamp(24px, 3.4vw, 34px); line-height: 1.15; }
+h3 { font-size: 18px; line-height: 1.3; }
+p { margin: 0; max-width: var(--measure); }
+
+.eyebrow {
+  font: 600 11px/1 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+code, kbd, .mono { font-family: var(--mono); font-variant-ligatures: none; }
+p code, dd code, li code, .decision code { font-size: 0.86em; letter-spacing: -0.01em; }
+
+/* --------------------------------------------------------------- masthead */
+.masthead { padding-top: clamp(28px, 6vw, 60px); }
+.brandline { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.wordmark {
+  font: 600 clamp(30px, 5.2vw, 46px)/1 var(--mono);
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.wordmark b { color: var(--accent); font-weight: 600; }
+.version {
+  font: 500 12px/1 var(--mono);
+  color: var(--ink-faint);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+.lede {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: clamp(21px, 3.1vw, 29px);
+  line-height: 1.25;
+  margin-top: 18px;
+  max-width: 22ch;
+  text-wrap: balance;
+}
+.sub { color: var(--ink-soft); margin-top: 14px; max-width: 56ch; }
+
+/* The four questions, as the tool's own vocabulary. */
+.questions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; padding: 0; list-style: none; }
+.questions li {
+  font: 500 12.5px/1 var(--mono);
+  color: var(--ink-soft);
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule-soft);
+  padding: 7px 11px;
+}
+
+/* ----------------------------------------------------------------- plate */
+.plate-shell { margin-top: clamp(28px, 5vw, 44px); }
+.plate {
+  background: var(--plate);
+  border: 1px solid var(--plate-line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 24px 48px -32px rgba(6, 20, 20, .55);
+}
+.plate-bar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--plate-bar);
+  border-bottom: 1px solid var(--plate-line);
+  padding: 11px 16px;
+  font: 500 12.5px/1.4 var(--mono);
+  color: var(--t-dim);
+}
+.plate-bar .cmd { color: var(--t-fg); }
+.plate-bar .cmd em { color: var(--t-cyan); font-style: normal; }
+.plate-bar .prompt { color: var(--t-cyan); }
+.plate-bar .stat { margin-left: auto; }
+.caret {
+  display: inline-block; width: 8px; height: 1.05em; vertical-align: -0.18em;
+  background: var(--t-cyan); margin-left: 3px;
+  animation: blink 1.15s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.plate-body { padding: 14px 16px 18px; overflow-x: auto; }
+.plate-inner { min-width: 660px; }
+
+.hostline {
+  font: 400 13px/1.6 var(--mono);
+  color: var(--t-dim);
+  border: 1px solid var(--plate-line);
+  border-radius: 5px;
+  padding: 9px 12px;
+}
+.hostline b { color: var(--t-cyan); font-weight: 600; }
+.hostline .ok { color: var(--t-green); }
+
+.tabs {
+  display: flex; gap: 0; flex-wrap: wrap;
+  font: 400 12.5px/1 var(--mono);
+  color: var(--t-dim);
+  margin: 12px 0 14px;
+}
+.tabs span { padding: 4px 10px; border-right: 1px solid var(--plate-line); }
+.tabs span:last-child { border-right: 0; }
+.tabs span i { font-style: normal; opacity: .55; margin-right: 5px; }
+.tabs .on { color: var(--t-cyan); }
+
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tile {
+  border: 1px solid var(--plate-line);
+  border-radius: 5px;
+  padding: 9px 11px;
+  font-family: var(--mono);
+}
+.tile .k { font-size: 10px; letter-spacing: .13em; color: var(--t-dim); }
+.tile .v { font-size: 21px; font-weight: 600; line-height: 1.25; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.tile .n { font-size: 11px; color: var(--t-dim); margin-top: 1px; }
+.tile.crit .v { color: var(--t-red); }
+.tile.warn .v { color: var(--t-amber); }
+.tile.calm .v { color: var(--t-cyan); }
+
+.findings {
+  margin-top: 12px;
+  border: 1px solid var(--plate-line);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.findings .fhead {
+  display: grid; grid-template-columns: 46px minmax(220px, 22ch) 1fr; gap: 12px;
+  font: 500 10px/1 var(--mono); letter-spacing: .13em; color: var(--t-dim);
+  padding: 9px 12px; border-bottom: 1px solid var(--plate-line);
+}
+.frow {
+  display: grid; grid-template-columns: 46px minmax(220px, 22ch) 1fr;
+  gap: 12px; padding: 6px 12px;
+  font: 400 12.5px/1.5 var(--mono);
+  color: var(--t-fg);
+  white-space: nowrap;
+}
+.frow + .frow { border-top: 1px solid color-mix(in srgb, var(--plate-line) 55%, transparent); }
+.frow .d { color: var(--t-dim); overflow: hidden; text-overflow: ellipsis; }
+.frow.sel { background: color-mix(in srgb, var(--t-cyan) 9%, transparent); }
+.sev { font-weight: 600; }
+.sev.high { color: var(--t-red); }
+.sev.med  { color: var(--t-amber); }
+.sev.low  { color: var(--t-fg); }
+.sev.info { color: var(--t-dim); }
+
+.plate-foot {
+  border-top: 1px solid var(--plate-line);
+  padding: 9px 16px;
+  font: 400 12px/1.4 var(--mono);
+  color: var(--t-dim);
+}
+.plate-foot b { color: var(--t-cyan); font-weight: 600; }
+.plate-cap {
+  font: 400 12px/1.5 var(--mono);
+  color: var(--ink-faint);
+  margin-top: 10px;
+}
+
+/* --------------------------------------------------------------- sections */
+section { padding-block: clamp(44px, 7vw, 76px); }
+.sec-head { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 26px; }
+.sec-head p { color: var(--ink-soft); }
+
+/* ---------------------------------------------------------------- install */
+.seg { display: flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; width: fit-content; }
+.seg button {
+  appearance: none; background: transparent; border: 0; cursor: pointer;
+  font: 500 13px/1 var(--mono); color: var(--ink-soft);
+  padding: 10px 15px; border-right: 1px solid var(--rule);
+}
+.seg button:last-child { border-right: 0; }
+.seg button:hover { background: var(--paper-sunk); color: var(--ink); }
+.seg button[aria-selected="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-selected="true"],
+:root:not([data-theme="light"]) .seg button[aria-selected="true"] { color: #06110F; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .seg button[aria-selected="true"] { color: #fff; } }
+
+.snip { margin-top: 16px; max-width: 760px; }
+.snip-box {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 14px 14px 14px 16px;
+}
+.snip-box pre {
+  margin: 0; flex: 1; overflow-x: auto;
+  font: 400 13.5px/1.7 var(--mono);
+  color: var(--ink);
+}
+.snip-box pre .p { color: var(--accent); user-select: none; }
+.copy {
+  appearance: none; cursor: pointer; flex: none;
+  font: 500 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-soft); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: 4px; padding: 7px 9px;
+}
+.copy:hover { color: var(--accent); border-color: var(--accent); }
+.snip-note { color: var(--ink-soft); font-size: 14.5px; margin-top: 12px; }
+.snip-note code { font-size: 13px; background: var(--paper-sunk); padding: 1px 5px; border-radius: 3px; }
+[hidden] { display: none !important; }
+
+/* ----------------------------------------------------------------- tables */
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; }
+th, td { text-align: left; padding: 11px 14px 11px 0; vertical-align: top; border-bottom: 1px solid var(--rule-soft); }
+th {
+  font: 600 10.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-faint); border-bottom: 1px solid var(--rule); padding-bottom: 9px;
+}
+td.q { font-family: var(--cond); font-weight: 600; font-size: 16.5px; width: 34%; }
+td.c { font: 400 13px/1.6 var(--mono); color: var(--ink-soft); }
+td.c b { color: var(--accent); font-weight: 500; }
+
+/* --------------------------------------------------------------- findings */
+.flags { display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.flag { display: grid; grid-template-columns: 62px 1fr; gap: 18px; padding: 15px 0; border-bottom: 1px solid var(--rule-soft); }
+.chip {
+  font: 600 10px/1 var(--mono); letter-spacing: .12em;
+  padding: 5px 0; text-align: left; color: var(--sev-info);
+}
+.chip.high { color: var(--sev-high); }
+.chip.med { color: var(--sev-med); }
+.flag h3 { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+.flag p { color: var(--ink-soft); font-size: 15px; margin-top: 5px; }
+.flag p code { font-size: 13px; }
+
+/* -------------------------------------------------------------- decisions */
+.decisions { display: grid; gap: 34px; }
+.decision { display: grid; grid-template-columns: minmax(0, 15ch) 1fr; gap: 28px; align-items: start; }
+.decision .label { font-family: var(--cond); font-weight: 700; font-size: 19px; line-height: 1.2; color: var(--accent); }
+.decision p + p { margin-top: 10px; }
+.decision p { color: var(--ink-soft); }
+.decision strong { color: var(--ink); font-weight: 500; }
+
+/* ------------------------------------------------------------------- keys */
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 9px 18px; align-items: baseline; }
+dt { font: 500 12.5px/1.5 var(--mono); color: var(--accent); white-space: nowrap; }
+dd { margin: 0; color: var(--ink-soft); font-size: 14.5px; }
+
+/* ----------------------------------------------------------------- footer */
+footer { padding-block: 40px 60px; color: var(--ink-faint); font-size: 14px; }
+.footrow { display: flex; gap: 22px; flex-wrap: wrap; align-items: center; }
+.footrow a { color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--rule); padding-bottom: 1px; }
+.footrow a:hover { color: var(--accent); border-color: var(--accent); }
+.footrow .sp { margin-left: auto; font-family: var(--mono); font-size: 12px; }
+
+@media (max-width: 720px) {
+  .tiles { grid-template-columns: repeat(2, 1fr); }
+  .decision { grid-template-columns: 1fr; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+  .caret { opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="brandline">
+      <span class="wordmark">srv<b>audit</b></span>
+      <span class="version">v0.1.0 · MIT</span>
+    </div>
+    <p class="lede">Find out what a server is actually doing.</p>
+    <p class="sub">
+      A terminal dashboard that answers four questions over one SSH connection, in about
+      half a second, without running a single command that writes.
+    </p>
+    <ul class="questions">
+      <li>what is listening</li>
+      <li>what is running</li>
+      <li>where the data is</li>
+      <li>what starts on its own</li>
+    </ul>
+  </div>
+
+  <div class="wrap plate-shell">
+    <div class="plate">
+      <div class="plate-bar">
+        <span class="prompt">$</span>
+        <span class="cmd">srvaudit <em>web-01</em> --sudo<span class="caret" aria-hidden="true"></span></span>
+        <span class="stat">10 probes · 0.6s</span>
+      </div>
+
+      <div class="plate-body">
+        <div class="plate-inner">
+          <div class="hostline">
+            <b>web-01.fra.acme.internal</b>&nbsp; Ubuntu 24.04.2 LTS&nbsp; 6.8.0-51-generic<br>
+            deploy@web-01&nbsp; <span class="ok">sudo</span>&nbsp; up 3 weeks, 2 days&nbsp; load 0.42 0.55 0.61&nbsp; cpus 4
+          </div>
+
+          <nav class="tabs" aria-hidden="true">
+            <span class="on"><i>1</i>Overview</span><span><i>2</i>Ports</span><span><i>3</i>Containers</span><span><i>4</i>Services</span><span><i>5</i>Disks</span><span><i>6</i>Dirs</span><span><i>7</i>Schedules</span><span><i>8</i>Probes</span>
+          </nav>
+
+          <div class="tiles">
+            <div class="tile crit"><div class="k">FINDINGS</div><div class="v">11</div><div class="n">5 high · 3 med</div></div>
+            <div class="tile warn"><div class="k">LISTENING</div><div class="v">9</div><div class="n">6 on all ifaces</div></div>
+            <div class="tile calm"><div class="k">CONTAINERS</div><div class="v">3/5</div><div class="n">running / total</div></div>
+            <div class="tile crit"><div class="k">FULLEST DISK</div><div class="v">96%</div><div class="n">/</div></div>
+          </div>
+
+          <div class="findings">
+            <div class="fhead"><span></span><span>FINDING</span><span>DETAIL</span></div>
+            <div class="frow sel"><span class="sev high">HIGH</span><span>/ is 96% full</span><span class="d">91G of 100G used on /dev/sda1 (ext4), 4.2G free.</span></div>
+            <div class="frow"><span class="sev high">HIGH</span><span>/ has used 94% of its inodes</span><span class="d">Writes start failing with ENOSPC once inodes run out, even with free space.</span></div>
+            <div class="frow"><span class="sev high">HIGH</span><span>Redis on every interface</span><span class="d">tcp 0.0.0.0:6379 (redis-server). Anything that can route here can reach it.</span></div>
+            <div class="frow"><span class="sev high">HIGH</span><span>Cron pipes a download to a shell</span><span class="d">*/10 * * * * as root: curl -sL https://install.example.com/sync.sh | bash</span></div>
+            <div class="frow"><span class="sev med">MED</span><span>4 ports published on 0.0.0.0</span><span class="d">Docker writes its own iptables chain ahead of INPUT, so ufw will not block these.</span></div>
+            <div class="frow"><span class="sev med">MED</span><span>1 service failed</span><span class="d">unattended-upgrades.service. Check with `systemctl status &lt;unit&gt;`.</span></div>
+            <div class="frow"><span class="sev info">INFO</span><span>1 job runs at every boot</span><span class="d">/opt/acme/bin/warm-cache</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="plate-foot">
+        <b>↹ 1-8</b> tab &nbsp; <b>↑↓</b> move &nbsp; <b>⏎</b> detail &nbsp; <b>/</b> filter &nbsp; <b>s</b> sort &nbsp; <b>r</b> refresh &nbsp; <b>e</b> export &nbsp; <b>q</b> quit
+      </div>
+    </div>
+    <p class="plate-cap">Example output. Press ⏎ on a finding and it jumps to the tab holding the evidence.</p>
+  </div>
+</header>
+
+<div class="wrap"><section id="install">
+  <div class="sec-head">
+    <h2>Install</h2>
+    <p>One binary. The only runtime dependency is the <code>ssh</code> client you already have.</p>
+  </div>
+
+  <div class="seg" role="tablist" aria-label="Install method">
+    <button role="tab" id="t-brew" aria-controls="p-brew" aria-selected="true">Homebrew</button>
+    <button role="tab" id="t-sh" aria-controls="p-sh" aria-selected="false">Shell script</button>
+    <button role="tab" id="t-cargo" aria-controls="p-cargo" aria-selected="false">Cargo</button>
+    <button role="tab" id="t-bin" aria-controls="p-bin" aria-selected="false">Binaries</button>
+  </div>
+
+  <div class="snip">
+    <div role="tabpanel" id="p-brew" aria-labelledby="t-brew">
+      <div class="snip-box">
+        <pre><span class="p">$ </span>brew install nickciolpan/tap/srvaudit</pre>
+        <button class="copy" data-copy="brew install nickciolpan/tap/srvaudit">Copy</button>
+      </div>
+      <p class="snip-note">Works on macOS and on Linux — Homebrew formulae are built for both.</p>
+    </div>
+
+    <div role="tabpanel" id="p-sh" aria-labelledby="t-sh" hidden>
+      <div class="snip-box">
+        <pre><span class="p">$ </span>curl -fsSL https://raw.githubusercontent.com/nickciolpan/srvaudit/main/install.sh | sh</pre>
+        <button class="copy" data-copy="curl -fsSL https://raw.githubusercontent.com/nickciolpan/srvaudit/main/install.sh | sh">Copy</button>
+      </div>
+      <p class="snip-note">Picks the right build for your platform and verifies its published SHA-256 before installing — a missing checksum aborts the install. Set <code>PREFIX=~/.local/bin</code> to choose where it lands.</p>
+    </div>
+
+    <div role="tabpanel" id="p-cargo" aria-labelledby="t-cargo" hidden>
+      <div class="snip-box">
+        <pre><span class="p">$ </span>cargo install --git https://github.com/nickciolpan/srvaudit</pre>
+        <button class="copy" data-copy="cargo install --git https://github.com/nickciolpan/srvaudit">Copy</button>
+      </div>
+      <p class="snip-note">Needs Rust 1.85 or newer for the 2024 edition.</p>
+    </div>
+
+    <div role="tabpanel" id="p-bin" aria-labelledby="t-bin" hidden>
+      <div class="snip-box">
+        <pre><span class="p">$ </span>srvaudit-darwin-arm64 · darwin-amd64 · linux-amd64 · linux-arm64</pre>
+        <button class="copy" data-copy="https://github.com/nickciolpan/srvaudit/releases/latest">Copy link</button>
+      </div>
+      <p class="snip-note">Every <a href="https://github.com/nickciolpan/srvaudit/releases/latest">release</a> ships four tarballs with checksums. The Linux builds are statically linked against musl, so they run on any distribution whatever its glibc.</p>
+    </div>
+  </div>
+</section></div>
+
+<hr class="rule">
+
+<div class="wrap"><section id="commands">
+  <div class="sec-head">
+    <h2>What it actually runs</h2>
+    <p>Nothing that writes. The commands you would type yourself, sent as one script to one remote <code>sh</code>.</p>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Question</th><th>Command</th></tr></thead>
+      <tbody>
+        <tr><td class="q">What is listening?</td><td class="c"><b>ss -tulnp</b> — falls back to <b>netstat -tulnp</b>. TCP and UDP.</td></tr>
+        <tr><td class="q">What containers exist?</td><td class="c"><b>docker ps -a</b> — falls back to <b>podman ps -a</b></td></tr>
+        <tr><td class="q">What services run?</td><td class="c"><b>systemctl list-units --type=service --state=running,failed,exited</b></td></tr>
+        <tr><td class="q">What starts at boot?</td><td class="c"><b>systemctl list-unit-files --type=service --state=enabled</b></td></tr>
+        <tr><td class="q">What is scheduled?</td><td class="c"><b>crontab -l</b>, <b>/etc/crontab</b>, <b>/etc/cron.d/*</b>, <b>/etc/cron.{hourly,daily,weekly,monthly}</b>, <b>systemctl list-timers</b></td></tr>
+        <tr><td class="q">How full is the disk?</td><td class="c"><b>df -hPT</b> and <b>df -iP</b> — space and inodes, because a full inode table fails writes while <b>df -h</b> still looks fine</td></tr>
+        <tr><td class="q">Where did the disk go?</td><td class="c"><b>du -shx /var/lib/*</b></td></tr>
+        <tr><td class="q">Who am I here?</td><td class="c"><b>uname</b>, <b>/etc/os-release</b>, <b>/proc/loadavg</b>, <b>/proc/meminfo</b>, <b>id -un</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section></div>
+
+<hr class="rule">
+
+<div class="wrap"><section id="findings">
+  <div class="sec-head">
+    <h2>What it flags</h2>
+    <p>Heuristics on a point-in-time snapshot, not a compliance scan — and every one of them is derived from output you can read in the Probes tab.</p>
+  </div>
+  <div class="flags">
+    <div class="flag">
+      <span class="chip high">HIGH</span>
+      <div>
+        <h3>A datastore bound to 0.0.0.0</h3>
+        <p>Postgres, Redis, Mongo, Elasticsearch, kubelet, the unauthenticated Docker API on 2375. Ports 22, 80 and 443 on <code>0.0.0.0</code> are not findings — that is what they are for.</p>
+      </div>
+    </div>
+    <div class="flag">
+      <span class="chip high">HIGH</span>
+      <div>
+        <h3>Inodes running out</h3>
+        <p>A filesystem past 85% of its inodes fails writes with <code>ENOSPC</code> while <code>df -h</code> still reports plenty of free space. Usually a directory full of tiny files.</p>
+      </div>
+    </div>
+    <div class="flag">
+      <span class="chip high">HIGH</span>
+      <div>
+        <h3>A cron job that pipes a download into a shell</h3>
+        <p><code>curl … | bash</code> on a schedule. Whoever controls that URL controls the machine, on every run.</p>
+      </div>
+    </div>
+    <div class="flag">
+      <span class="chip med">MED</span>
+      <div>
+        <h3>Container ports published on 0.0.0.0</h3>
+        <p>Docker inserts its own iptables rules ahead of the <code>INPUT</code> chain, so the <code>ufw</code> rule you wrote does not block them. Publish to <code>127.0.0.1</code> where you can.</p>
+      </div>
+    </div>
+    <div class="flag">
+      <span class="chip med">MED</span>
+      <div>
+        <h3>Failed units and crash-looping containers</h3>
+        <p>Plus filesystems past 80% and 90%, and units that are enabled at boot but never started.</p>
+      </div>
+    </div>
+  </div>
+</section></div>
+
+<hr class="rule">
+
+<div class="wrap"><section id="decisions">
+  <div class="sec-head">
+    <h2>Three decisions worth knowing about</h2>
+  </div>
+  <div class="decisions">
+    <div class="decision">
+      <div class="label">It drives OpenSSH</div>
+      <div>
+        <p>Rather than reimplementing SSH. Your <strong>~/.ssh/config</strong> aliases, <strong>ProxyJump</strong>, agent keys, certificates, FIDO tokens, 2FA prompts and <strong>known_hosts</strong> all behave exactly as they do when you type <code>ssh</code> yourself.</p>
+        <p>The first connection opens a <strong>ControlMaster</strong> socket in a private 0700 directory, so pressing <kbd>r</kbd> to refresh reuses it and never authenticates twice.</p>
+      </div>
+    </div>
+    <div class="decision">
+      <div class="label">It never asks for a sudo password</div>
+      <div>
+        <p><code>--sudo</code> uses <strong>sudo -n</strong> only. If sudo wants a password, the privileged probes are skipped and the Overview says so.</p>
+        <p>An audit tool that can hang forever on a hidden password prompt is worse than one that tells you what it could not see.</p>
+      </div>
+    </div>
+    <div class="decision">
+      <div class="label">“Denied” is never “none”</div>
+      <div>
+        <p>Every probe records whether it succeeded, was refused, found the tool missing, or came back <strong>partial</strong>. An empty tab says either <em>nothing here</em> or <em>unknown, not empty: docker ps -a — permission denied</em>.</p>
+        <p>And a probe that returns most of an answer keeps it: <code>du -shx /var/lib/*</code> exits 1 when a couple of subdirectories are root-only, having correctly sized the other twenty. That is recorded as partial, with the data intact and the gap reported — not thrown away as a failure.</p>
+      </div>
+    </div>
+  </div>
+</section></div>
+
+<hr class="rule">
+
+<div class="wrap"><section id="using">
+  <div class="sec-head"><h2>Using it</h2></div>
+  <div class="cols">
+    <div>
+      <p class="eyebrow" style="margin-bottom:16px">Targets and output</p>
+      <dl>
+        <dt>srvaudit web-01</dt><dd>an ~/.ssh/config alias</dd>
+        <dt>deploy@10.0.0.7:2222</dt><dd>or the long form</dd>
+        <dt>--sudo</dt><dd>see process names and other users' crontabs</dd>
+        <dt>-J bastion</dt><dd>through a jump host</dd>
+        <dt>--report markdown</dt><dd>no TUI, print a report</dd>
+        <dt>--out audit.json</dt><dd>save the whole audit</dd>
+        <dt>--from-json audit.json</dt><dd>reopen it later, offline</dd>
+        <dt>--no-du</dt><dd>skip the one probe that can be slow</dd>
+      </dl>
+    </div>
+    <div>
+      <p class="eyebrow" style="margin-bottom:16px">Keys</p>
+      <dl>
+        <dt>1–8 · tab · ← →</dt><dd>switch tab</dd>
+        <dt>↑ ↓ · j k · g G</dt><dd>move</dd>
+        <dt>⏎</dt><dd>row detail; on the Overview, jump to the evidence</dd>
+        <dt>/</dt><dd>filter — matches hidden detail too</dd>
+        <dt>s · S</dt><dd>cycle sort column, reverse it</dd>
+        <dt>r</dt><dd>re-run over the same connection</dd>
+        <dt>e</dt><dd>export JSON and Markdown</dd>
+        <dt>? · q</dt><dd>help, quit</dd>
+      </dl>
+    </div>
+  </div>
+</section></div>
+
+<hr class="rule">
+
+<footer><div class="wrap footrow">
+  <a href="https://github.com/nickciolpan/srvaudit">Source</a>
+  <a href="https://github.com/nickciolpan/srvaudit/releases/latest">Releases</a>
+  <a href="https://github.com/nickciolpan/homebrew-tap">Tap</a>
+  <a href="https://github.com/nickciolpan/srvaudit/issues">Issues</a>
+  <span class="sp">MIT · Nick Ciolpan</span>
+</div></footer>
+
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.seg [role="tab"]'));
+  function show(tab) {
+    tabs.forEach(function (t) {
+      var selected = t === tab;
+      t.setAttribute('aria-selected', String(selected));
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !selected;
+    });
+  }
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () { show(t); });
+    t.addEventListener('keydown', function (e) {
+      var i = tabs.indexOf(t);
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        var next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+        next.focus(); show(next);
+      }
+    });
+  });
+
+  document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var text = btn.getAttribute('data-copy');
+      var done = function () {
+        var was = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = was; }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, done);
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta); done();
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
