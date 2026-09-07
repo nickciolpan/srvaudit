@@ -1,0 +1,6 @@
+cron.service                loaded active   running Regular background program processing daemon
+docker.service              loaded active   running Docker Application Container Engine
+nginx.service               loaded active   running A high performance web server and a reverse proxy server
+postgresql@16-main.service  loaded active   running PostgreSQL Cluster 16-main
+ssh.service                 loaded active   running OpenBSD Secure Shell server
+unattended-upgrades.service loaded failed   failed  Unattended Upgrades Shutdown

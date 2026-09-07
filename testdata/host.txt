@@ -1,0 +1,12 @@
+HOSTNAME=web-01.fra.acme.internal
+OS=Ubuntu 24.04.2 LTS
+KERNEL=6.8.0-51-generic
+ARCH=x86_64
+UPTIME=up 3 weeks, 2 days, 4 hours
+CPUS=4
+LOAD=0.42 0.55 0.61
+MEMTOTAL=7844
+MEMUSED=5210
+USER=deploy
+VIRT=kvm
+SUDO=passwordless

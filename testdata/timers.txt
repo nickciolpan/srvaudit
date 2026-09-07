@@ -1,0 +1,3 @@
+Mon 2026-09-08 00:00:00 UTC 7h left      Sun 2026-09-07 00:00:11 UTC 16h ago     logrotate.timer              logrotate.service
+Mon 2026-09-08 06:14:22 UTC 13h left     Sun 2026-09-07 06:12:03 UTC 10h ago     apt-daily.timer              apt-daily.service
+n/a                         n/a          Sat 2026-09-06 03:10:01 UTC 1 day ago   fstrim.timer                 fstrim.service

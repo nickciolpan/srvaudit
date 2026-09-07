@@ -1,0 +1,6 @@
+4.0K	/var/lib/apt
+12G	/var/lib/docker
+1.5M	/var/lib/logrotate
+118G	/var/lib/postgresql
+0	/var/lib/misc
+340K	/var/lib/dpkg

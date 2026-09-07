@@ -1,0 +1,5 @@
+3f0c1a9b8e21	postgres:16-alpine	pg-main	running	Up 8 days	0.0.0.0:5432->5432/tcp, :::5432->5432/tcp	8 days ago
+9ab77c2d10ff	redis:7	cache	running	Up 8 days	127.0.0.1:6379->6379/tcp	8 days ago
+c41d8e550a13	ghcr.io/acme/api:1.4.2	api	restarting	Restarting (1) 12 seconds ago	8080/tcp	3 days ago
+0d21bb994ecc	traefik:v3	edge	running	Up 8 days	0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp	8 days ago
+77aa01ff32be	acme/migrate:latest	migrate-once	exited	Exited (137) 2 weeks ago		2 weeks ago

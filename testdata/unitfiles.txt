@@ -1,0 +1,5 @@
+cron.service                               enabled enabled
+docker.service                             enabled enabled
+nginx.service                              enabled enabled
+ssh.service                                enabled enabled
+node_exporter.service                      enabled disabled

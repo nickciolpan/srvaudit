@@ -1,0 +1,4 @@
+Filesystem        Inodes    IUsed     IFree IUse% Mounted on
+udev              489841      432    489409    1% /dev
+/dev/sda1        6553600  6100000    453600   94% /
+/dev/sdb1       32768000   210344  32557656    1% /var/lib/postgresql

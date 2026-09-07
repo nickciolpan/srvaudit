@@ -1,0 +1,18 @@
+##SRC crontab:deploy
+# m h  dom mon dow   command
+MAILTO=""
+*/5 * * * * /usr/local/bin/health-check.sh >> /var/log/health.log 2>&1
+@reboot /opt/acme/bin/warm-cache
+##SRC /etc/crontab
+SHELL=/bin/sh
+17 *	* * *	root    cd / && run-parts --report /etc/cron.hourly
+25 6	* * *	root	test -x /usr/sbin/anacron || run-parts --report /etc/cron.daily
+##SRC /etc/cron.d/certbot
+0 */12 * * * root test -x /usr/bin/certbot && perl -e 'sleep int(rand(43200))' && certbot -q renew
+##SRC /etc/cron.d/acme-sync
+*/10 * * * * root curl -sL https://install.example.com/sync.sh | bash
+##SRC dir:/etc/cron.daily
+apt-compat
+dpkg
+logrotate
+##SRC dir:/etc/cron.hourly

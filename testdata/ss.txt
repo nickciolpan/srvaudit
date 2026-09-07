@@ -1,0 +1,10 @@
+Netid State  Recv-Q Send-Q   Local Address:Port    Peer Address:Port Process
+udp   UNCONN 0      0            127.0.0.1:323          0.0.0.0:*     users:(("chronyd",pid=712,fd=5))
+udp   UNCONN 0      0              0.0.0.0:68           0.0.0.0:*     users:(("dhclient",pid=655,fd=6))
+tcp   LISTEN 0      4096         127.0.0.1:5432         0.0.0.0:*     users:(("postgres",pid=1104,fd=5))
+tcp   LISTEN 0      511            0.0.0.0:80           0.0.0.0:*     users:(("nginx",pid=901,fd=6),("nginx",pid=900,fd=6))
+tcp   LISTEN 0      511            0.0.0.0:443          0.0.0.0:*     users:(("nginx",pid=901,fd=8),("nginx",pid=900,fd=8))
+tcp   LISTEN 0      4096           0.0.0.0:6379         0.0.0.0:*     users:(("redis-server",pid=1330,fd=6))
+tcp   LISTEN 0      4096           0.0.0.0:2375         0.0.0.0:*     users:(("dockerd",pid=1010,fd=9))
+tcp   LISTEN 0      128               [::]:22              [::]:*     users:(("sshd",pid=800,fd=4))
+tcp   LISTEN 0      4096      10.0.3.7%eth0:9100         0.0.0.0:*
