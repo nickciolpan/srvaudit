@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Audit {
     /// Schema version, so a future release can refuse to misread an old file.
     #[serde(default = "schema_version")]
@@ -40,6 +41,7 @@ impl Audit {
 // ---------------------------------------------------------------- host ----
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct HostInfo {
     pub hostname: String,
     pub os: String,

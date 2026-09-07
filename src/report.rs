@@ -331,6 +331,22 @@ mod tests {
         assert!(containers.contains("not collected (denied)"));
     }
 
+    /// A file written by an older build, or trimmed by hand, must still open:
+    /// every field falls back to its default rather than failing the load.
+    #[test]
+    fn a_partial_audit_file_still_loads() {
+        let minimal: Audit = serde_json::from_str(r#"{"target":"web-01"}"#).unwrap();
+        assert_eq!(minimal.target, "web-01");
+        assert!(minimal.listeners.is_empty());
+        assert_eq!(minimal.schema, SCHEMA_VERSION);
+        assert!(text(&minimal).contains("Server audit"));
+
+        let no_host: Audit =
+            serde_json::from_str(r#"{"target":"x","host":{},"probes":[]}"#).unwrap();
+        assert_eq!(no_host.host.hostname, "");
+        assert!(markdown(&no_host).contains("## Host"));
+    }
+
     #[test]
     fn json_round_trips() {
         let a = audit();

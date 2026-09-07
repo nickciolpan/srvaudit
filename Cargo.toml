@@ -1,6 +1,6 @@
 [package]
 name = "srvaudit"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Terminal audit dashboard for remote Linux servers: what listens, what runs, where the data is, what starts on its own."
 license = "MIT"
