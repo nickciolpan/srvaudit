@@ -205,7 +205,7 @@ fn section_services(a: &Audit, f: Flavor, o: &mut String) {
             let mark = if active.contains(&u.unit.as_str()) || u.unit.contains("@.") {
                 ""
             } else {
-                "  (not active)"
+                "  (inactive)"
             };
             o.push_str(&f.bullet(&format!("{}{mark}", u.unit)));
         }

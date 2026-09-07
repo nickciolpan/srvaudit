@@ -521,7 +521,7 @@ impl App {
             rows.push(ViewRow::new(
                 vec![
                     u.unit.clone(),
-                    "not active".into(),
+                    "inactive".into(),
                     "-".into(),
                     u.state.clone(),
                     String::new(),
@@ -869,6 +869,31 @@ mod tests {
         App::new(sample_audit(), "ssh: web-01".into(), true)
     }
 
+    /// A value wider than its Length() column is silently clipped, which is how
+    /// "not active" shipped as "not activ".
+    #[test]
+    fn fixed_width_columns_fit_their_values() {
+        use ratatui::layout::Constraint;
+        let mut a = app();
+        for (i, tab) in Tab::ALL.iter().enumerate() {
+            a.tab = i;
+            let t = a.table();
+            for (col, width) in t.widths.iter().enumerate() {
+                let Constraint::Length(w) = width else {
+                    continue;
+                };
+                for row in &t.rows {
+                    let cell = &row.cells[col];
+                    assert!(
+                        cell.chars().count() <= *w as usize,
+                        "{}: column {col} is {w} wide but holds {cell:?}",
+                        tab.title()
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn every_tab_builds_a_table() {
         let mut a = app();
@@ -892,7 +917,7 @@ mod tests {
             .iter()
             .find(|r| r.cells[0] == "node_exporter.service")
             .expect("enabled unit missing from the services tab");
-        assert_eq!(node.cells[1], "not active");
+        assert_eq!(node.cells[1], "inactive");
         assert_eq!(node.tone, Tone::Dim);
 
         let nginx = t
